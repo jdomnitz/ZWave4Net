@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ZWave.Channel.Protocol
 {
-    [Flags()]
+    [Flags]
     enum ReceiveStatus : byte
     {
         None = 0x00,
@@ -17,5 +13,6 @@ namespace ZWave.Channel.Protocol
         TypeMulti = 0x10,
         TypeExplore = 0x20,
         ForeignFrame = 0x40,
+        ForeignHomeId = 0x80
     };
 }

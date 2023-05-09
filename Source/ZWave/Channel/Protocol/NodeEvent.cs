@@ -37,6 +37,8 @@ namespace ZWave.Channel.Protocol
                 ReceiveStatus |= ReceiveStatus.TypeExplore;
             if ((payload[0] & 0x40) > 0)
                 ReceiveStatus |= ReceiveStatus.ForeignFrame;
+            if ((payload[0] & 0x80) > 0)
+                ReceiveStatus |= ReceiveStatus.ForeignHomeId;
 
             if (function == Channel.Function.ApplicationCommandHandlerBridge)
             {
