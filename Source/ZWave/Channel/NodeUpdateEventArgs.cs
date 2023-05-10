@@ -7,6 +7,7 @@ namespace ZWave.Channel
     {
         public readonly byte NodeID;
         public readonly ApplicationUpdateType UpdateState;
+        public NodeInformation NodeInfo;
 
         public NodeUpdateEventArgs(byte nodeID, ApplicationUpdateType state)
         {

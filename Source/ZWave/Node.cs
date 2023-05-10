@@ -6,6 +6,7 @@ using ZWave.Channel;
 using System.Collections;
 using System;
 using System.Threading;
+using ZWave.Channel.Protocol;
 
 namespace ZWave
 {
@@ -25,7 +26,7 @@ namespace ZWave
         /// <summary>
         /// Will be fired when node update command received.
         /// </summary>
-        public event EventHandler<EventArgs> UpdateReceived;
+        public event EventHandler<NodeUpdateEventArgs> UpdateReceived;
 
         /// <summary>
         /// Will be fired when any command received.
@@ -81,6 +82,13 @@ namespace ZWave
 
         public async Task<VersionCommandClassReport[]> GetSupportedCommandClasses(CancellationToken cancellationToken = default)
         {
+            //If results are cached use those
+            lock (_commandClassVersions)
+            {
+                if (_commandClassVersions.Count > 0)
+                    return _commandClassVersions.Values.ToArray();
+            }
+
             // is this node the controller?
             if (await Controller.GetNodeID() == NodeID)
             {
@@ -88,19 +96,28 @@ namespace ZWave
                 return new VersionCommandClassReport[0];
             }
 
+            //Enumerate all possible command classes
             var version = GetCommandClass<CommandClasses.Version>();
             var commandClassVersions = new Dictionary<CommandClass, VersionCommandClassReport>();
             foreach (var commandClass in Enum.GetValues(typeof(CommandClass)).Cast<CommandClass>())
             {
                 var report = await version.GetCommandClass(commandClass, cancellationToken);
-                commandClassVersions[commandClass] = report;
+                if (report.Version > 0)
+                    commandClassVersions[commandClass] = report;
             }
 
+            //Cache the results
             _commandClassVersions = commandClassVersions;
             lock(_commandClassVersions)
             {
-                return _commandClassVersions.Values.Where(r => r.Version > 0).ToArray();
+                return _commandClassVersions.Values.ToArray();
             }
+        }
+
+        public async Task<bool> RequestNodeInfo(CancellationToken cancellationToken)
+        {
+            var response = await Channel.Send(Function.RequestNodeInfo, cancellationToken, NodeID );
+            return response[0] == 0x1;
         }
 
         public Task<NodeProtocolInfo> GetProtocolInfo()
@@ -111,7 +128,7 @@ namespace ZWave
         public async Task<NodeProtocolInfo> GetProtocolInfo(CancellationToken cancellationToken)
         {
             var response = await Channel.Send(Function.GetNodeProtocolInfo, cancellationToken, NodeID);
-            return NodeProtocolInfo.Parse(response);
+            return new NodeProtocolInfo(response);
         }
 
         public async Task<NeighborUpdateStatus> RequestNeighborUpdate(Action<NeighborUpdateStatus> progress = null, CancellationToken cancellationToken = default)
@@ -238,8 +255,7 @@ namespace ZWave
                     return _commandClassVersions[commandClass];
             }
 
-            // The version isn't cached, so we should bring it now.
-            //
+            // The version isn't cached, so we should fetch it now.
             var version = GetCommandClass<CommandClasses.Version>();
             var report = await version.GetCommandClass(commandClass, cancellationToken);
             lock (_commandClassVersions)
@@ -264,14 +280,38 @@ namespace ZWave
             }
         }
 
-        internal void HandleUpdate()
+        internal void HandleUpdate(ApplicationUpdateType state, byte[] payload)
         {
-            MessageReceived?.Invoke(this, EventArgs.Empty);
-            OnUpdateReceived(EventArgs.Empty);
-        }
-        
-        protected virtual void OnUpdateReceived(EventArgs args)
-        {
+            NodeUpdateEventArgs args = new NodeUpdateEventArgs(NodeID, state);
+            if (state == ApplicationUpdateType.NodeInfoReceived)
+            {
+                NodeInformation info = new NodeInformation(payload);
+                args.NodeInfo = info;
+                Monitor.TryEnter(_commandClassVersions);
+                if (_commandClassVersions.Count == 0)
+                {
+                    Task.Factory.StartNew(() =>
+                    {
+                        try
+                        {
+                            var version = this.GetCommandClass<CommandClasses.Version>();
+                            foreach (var commandClass in info.CommandClasses)
+                            {
+                                var report = version.GetCommandClass(commandClass);
+                                report.Wait();
+                                if (report.Result.Version > 0)
+                                    _commandClassVersions[commandClass] = report.Result;
+                            }
+                        }
+                        finally
+                        {
+                            if (Monitor.IsEntered(_commandClassVersions))
+                                Monitor.Exit(_commandClassVersions);
+                        }
+                    });
+                }
+            }
+            MessageReceived?.Invoke(this, args);
             UpdateReceived?.Invoke(this, args);
         }
 
