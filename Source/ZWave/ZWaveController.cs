@@ -50,7 +50,7 @@ namespace ZWave
         public void Open()
         {
             Channel.NodeEventReceived += Channel_NodeEventReceived;
-            Channel.NodeUpdateReceived += Channel_NodeUpdateReceived;
+            Channel.ApplicationUpdateReceived += Channel_ApplicationUpdateReceived;
             Channel.NodesNetworkChangeOccurred += Channel_NodesNetworkChangeOccurred;
             Channel.Error += Channel_Error;
             Channel.Closed += Channel_Closed;
@@ -129,7 +129,7 @@ namespace ZWave
             }
         }
 
-        private async void Channel_NodeUpdateReceived(object sender, NodeUpdateEventArgs e)
+        private async void Channel_ApplicationUpdateReceived(object sender, ApplicationUpdateEventArgs e)
         {
             try
             {
@@ -137,7 +137,7 @@ namespace ZWave
                 var target = nodes[e.NodeID];
                 if (target != null)
                 {
-                    target.HandleUpdate();
+                    target.HandleUpdate(e.UpdateState, e.Payload);
                 }
             }
             catch (Exception ex)
@@ -151,7 +151,7 @@ namespace ZWave
             Channel.NodesNetworkChangeOccurred -= Channel_NodesNetworkChangeOccurred;
             Channel.Error -= Channel_Error;
             Channel.NodeEventReceived -= Channel_NodeEventReceived;
-            Channel.NodeUpdateReceived -= Channel_NodeUpdateReceived;
+            Channel.ApplicationUpdateReceived -= Channel_ApplicationUpdateReceived;
             Channel.Close();
         }
 

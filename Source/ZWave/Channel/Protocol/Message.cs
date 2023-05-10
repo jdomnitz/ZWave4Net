@@ -116,7 +116,7 @@ namespace ZWave.Channel.Protocol
                     }
                     if (function == Channel.Function.ApplicationUpdate)
                     {
-                        return new NodeUpdate(payload);
+                        return new ApplicationUpdate(payload);
                     }
                     else
                     {

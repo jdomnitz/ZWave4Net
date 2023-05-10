@@ -27,7 +27,7 @@ namespace ZWave.Channel
         public TimeSpan ReceiveTimeout = TimeSpan.FromSeconds(2);
         public TimeSpan ResponseTimeout = TimeSpan.FromSeconds(5);
         public event EventHandler<NodeEventArgs> NodeEventReceived;
-        public event EventHandler<NodeUpdateEventArgs> NodeUpdateReceived;
+        public event EventHandler<ApplicationUpdateEventArgs> ApplicationUpdateReceived;
         internal event EventHandler<ControllerFunctionMessage> NodesNetworkChangeOccurred;
         public event EventHandler<ErrorEventArgs> Error;
         public event EventHandler Closed;
@@ -103,7 +103,7 @@ namespace ZWave.Channel
                     }
 
                     // is it a updatemessage from a node?
-                    if (message is NodeUpdate)
+                    if (message is ApplicationUpdate)
                     {
                         // yes, so add to eventqueue
                         _eventQueue.Add(message);
@@ -184,9 +184,9 @@ namespace ZWave.Channel
                 OnNodeEventReceived((NodeEvent)message);
                 return;
             }
-            if (message is NodeUpdate)
+            if (message is ApplicationUpdate)
             {
-                OnNodeUpdateReceived((NodeUpdate)message);
+                OnNodeUpdateReceived((ApplicationUpdate)message);
                 return;
             }
         }
@@ -213,19 +213,19 @@ namespace ZWave.Channel
             }
         }
 
-        private void OnNodeUpdateReceived(NodeUpdate update)
+        private void OnNodeUpdateReceived(ApplicationUpdate update)
         {
             if (update == null)
                 throw new ArgumentNullException(nameof(update));
 
-            var handler = NodeUpdateReceived;
+            var handler = ApplicationUpdateReceived;
             if (handler != null)
             {
-                foreach (var invocation in handler.GetInvocationList().Cast<EventHandler<NodeUpdateEventArgs>>())
+                foreach (var invocation in handler.GetInvocationList().Cast<EventHandler<ApplicationUpdateEventArgs>>())
                 {
                     try
                     {
-                        invocation(this, new NodeUpdateEventArgs(update.NodeID));
+                        invocation(this, new ApplicationUpdateEventArgs(update.NodeID, update.UpdateState, update.Payload));
                     }
                     catch (Exception ex)
                     {
