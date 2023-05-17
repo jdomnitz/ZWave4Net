@@ -82,13 +82,6 @@ namespace ZWave
 
         public async Task<VersionCommandClassReport[]> GetSupportedCommandClasses(CancellationToken cancellationToken = default)
         {
-            //If results are cached use those
-            lock (_commandClassVersions)
-            {
-                if (_commandClassVersions.Count > 0)
-                    return _commandClassVersions.Values.ToArray();
-            }
-
             // is this node the controller?
             if (await Controller.GetNodeID() == NodeID)
             {
@@ -96,14 +89,24 @@ namespace ZWave
                 return new VersionCommandClassReport[0];
             }
 
+            //If results are cached use those
+            lock (_commandClassVersions)
+            {
+                if (_commandClassVersions.Count > 0)
+                    return _commandClassVersions.Values.ToArray();
+            }
+
             //Enumerate all possible command classes
             var version = GetCommandClass<CommandClasses.Version>();
             var commandClassVersions = new Dictionary<CommandClass, VersionCommandClassReport>();
             foreach (var commandClass in Enum.GetValues(typeof(CommandClass)).Cast<CommandClass>())
             {
-                var report = await version.GetCommandClass(commandClass, cancellationToken);
-                if (report.Version > 0)
-                    commandClassVersions[commandClass] = report;
+                if ((byte)commandClass > 0x20) //Version does not support <= 0x20
+                {
+                    var report = await version.GetCommandClass(commandClass, cancellationToken);
+                    if (report.Version > 0)
+                        commandClassVersions[commandClass] = report;
+                }
             }
 
             //Cache the results
@@ -114,18 +117,13 @@ namespace ZWave
             }
         }
 
-        public async Task<bool> RequestNodeInfo(CancellationToken cancellationToken)
+        public async Task<bool> RequestNodeInfo(CancellationToken cancellationToken = default)
         {
             var response = await Channel.Send(Function.RequestNodeInfo, cancellationToken, NodeID );
             return response[0] == 0x1;
         }
 
-        public Task<NodeProtocolInfo> GetProtocolInfo()
-        {
-            return GetProtocolInfo(CancellationToken.None);
-        }
-
-        public async Task<NodeProtocolInfo> GetProtocolInfo(CancellationToken cancellationToken)
+        public async Task<NodeProtocolInfo> GetProtocolInfo(CancellationToken cancellationToken = default)
         {
             var response = await Channel.Send(Function.GetNodeProtocolInfo, cancellationToken, NodeID);
             return new NodeProtocolInfo(response);
